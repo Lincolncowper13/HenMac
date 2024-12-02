@@ -1,0 +1,65 @@
+name: macOS with Tailscale and Admin Access
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  macos-with-tailscale:
+    runs-on: macos-latest
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 2. Generate Random Admin Password
+      - name: Generate Random Admin Password
+        id: password
+        run: echo "password=$(LC_CTYPE=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 4)" >> $GITHUB_ENV
+
+      # 3. Create Admin Account
+      - name: Create Admin Account
+        run: |
+          sudo sysadminctl -addUser HenCoders -password $password
+          sudo dscl . -append /Groups/admin GroupMembership HenCoders
+
+      # 4. Install Tailscale
+      - name: Install Tailscale
+        run: |
+          curl -fsSL https://tailscale.com/install.sh | sh
+
+      # 5. Authenticate Tailscale
+      - name: Authenticate Tailscale
+        env:
+          TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+        run: |
+          sudo tailscale up --authkey=$TAILSCALE_AUTHKEY
+
+      # 6. Retrieve Tailscale IP
+      - name: Get Tailscale IP
+        id: tailscale_ip
+        run: |
+          TAILSCALE_IP=$(tailscale ip -4)
+          echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
+
+      # 7. Log Tailscale and Admin Information
+      - name: Display Login Information
+        run: |
+          echo "========================================="
+          echo "Tailscale IP: $TAILSCALE_IP"
+          echo "Username: HenCoders"
+          echo "Password: $password"
+          echo "========================================="
+
+      # 8. Continuous Status Logging
+      - name: Continuous Status Logging
+        run: |
+          echo "Starting continuous status logging..."
+          for ((i=0; i<100*30*24*30; i++)); do
+            echo "$(date): Hen MacOS Status - MacOS Active" >> macos_status.log
+            sleep 10
+          done &
+          echo "Continuous logging has been initiated!"
